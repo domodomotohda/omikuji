@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>どもどもおみくじ:tohda.com</title>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NPSH4SKZ5E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-NPSH4SKZ5E');
+</script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Yusei+Magic&display=swap');
+
+    body {
+      font-family: 'Yusei Magic', sans-serif;
+      background-color: #f8f4e6;
+      background-image: radial-gradient(#e2d5c5 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    @keyframes shake-box {
+      0% { transform: rotate(0deg) translateY(0); }
+      20% { transform: rotate(-10deg) translateY(-10px); }
+      40% { transform: rotate(10deg) translateY(-10px); }
+      60% { transform: rotate(-10deg) translateY(-10px); }
+      80% { transform: rotate(10deg) translateY(-10px); }
+      100% { transform: rotate(0deg) translateY(0); }
+    }
+    .shaking { animation: shake-box 0.4s ease-in-out infinite; }
+
+    @keyframes dark-aura {
+      0% { box-shadow: 0 0 20px #4a0404, inset 0 0 20px #000; }
+      50% { box-shadow: 0 0 40px #700b0b, inset 0 0 40px #1a0000; }
+      100% { box-shadow: 0 0 20px #4a0404, inset 0 0 20px #000; }
+    }
+    .aura-daikyo { animation: dark-aura 2s infinite alternate; background-color: #1a1a1a !important; border-color: #4a0404 !important; }
+    .aura-daikyo #resultText { color: #ff3333 !important; }
+    .aura-daikyo #adviceArea { border-top-color: #4a0404; }
+    .aura-daikyo .fortune-label { color: #666 !important; }
+    .aura-daikyo #resultMsg { color: #ff9999 !important; }
+    .aura-daikyo #resultAction { background-color: #333 !important; color: #fff !important; border-color: #4a0404 !important; }
+    .aura-daikyo .nagesen-text { color: #666 !important; }
+
+    @keyframes gold-aura {
+      0% { box-shadow: 0 0 20px #fbbf24; text-shadow: 0 0 10px #fff, 0 0 20px #fbbf24; }
+      50% { box-shadow: 0 0 40px #f59e0b; text-shadow: 0 0 20px #fff, 0 0 40px #f59e0b; }
+      100% { box-shadow: 0 0 20px #fbbf24; text-shadow: 0 0 10px #fff, 0 0 20px #fbbf24; }
+    }
+    .aura-daikichi { animation: gold-aura 2s infinite alternate; background: linear-gradient(135deg, #ef4444, #b91c1c) !important; border-color: #fbbf24 !important; }
+    .aura-daikichi #resultText { color: #fbbf24 !important; }
+    .aura-daikichi #adviceArea { border-top-color: rgba(251, 191, 36, 0.3); }
+    .aura-daikichi .fortune-label { color: rgba(255, 255, 255, 0.7) !important; }
+    .aura-daikichi #resultMsg { color: #fff !important; }
+    .aura-daikichi #resultAction { background-color: rgba(251, 191, 36, 0.2) !important; color: #fff !important; border-color: #fbbf24 !important; }
+    .aura-daikichi .nagesen-text { color: rgba(255, 255, 255, 0.7) !important; }
+  </style>
+</head>
+<body class="min-h-[100svh] flex flex-col items-center justify-between p-2 md:p-4 relative overflow-hidden select-none">
+
+  <button id="soundToggle" class="fixed bottom-4 right-4 bg-white/90 border border-gray-300 rounded-full w-10 h-10 flex items-center justify-center text-sm shadow-md hover:bg-gray-100 transition-colors z-50" aria-label="音声のオンオフ">
+    🔊
+  </button>
+
+  <div class="w-full h-4"></div>
+
+  <div class="text-center mb-4 md:mb-8 z-10 w-full relative">
+    <h1 class="text-4xl md:text-6xl font-bold text-red-700 drop-shadow-md mb-1 md:mb-2 mt-4 md:mt-0">どもどもおみくじ</h1>
+    <p class="text-sm md:text-base text-gray-700 font-bold">今日の運勢を占おう！</p>
+  </div>
+
+  <div class="bg-white p-4 md:p-8 rounded-3xl shadow-xl border-4 border-red-800 z-10 w-full max-w-md flex flex-col items-center relative mb-auto">
+    <div class="w-full mb-4 md:mb-8 mt-2">
+      <h2 class="text-center text-xs md:text-sm text-gray-500 mb-2 font-bold">確率モード選択</h2>
+      <div class="grid grid-cols-3 gap-1 md:gap-2 bg-gray-100 p-1 md:p-2 rounded-xl">
+        <label class="cursor-pointer">
+          <input type="radio" name="mode" value="lucky" class="peer sr-only">
+          <div class="text-center py-2 px-1 rounded-lg text-xs md:text-sm font-bold text-gray-500 transition-all peer-checked:bg-yellow-300 peer-checked:text-yellow-800 peer-checked:shadow">
+            ラッキー<br><span class="text-[9px] md:text-[10px]">大吉：50%</span>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="mode" value="standard" class="peer sr-only" checked>
+          <div class="text-center py-2 px-1 rounded-lg text-xs md:text-sm font-bold text-gray-500 transition-all peer-checked:bg-green-500 peer-checked:text-white peer-checked:shadow">
+            標準<br><span class="text-[9px] md:text-[10px]">一般的</span>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="mode" value="thorny" class="peer sr-only">
+          <div class="text-center py-2 px-1 rounded-lg text-xs md:text-sm font-bold text-gray-500 transition-all peer-checked:bg-purple-800 peer-checked:text-purple-100 peer-checked:shadow">
+            いばらの道<br><span class="text-[9px] md:text-[10px]">大吉：1%</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div id="omikuji-box" class="text-7xl md:text-9xl mb-4 md:mb-8 drop-shadow-xl transition-transform">🏮</div>
+
+    <button id="drawBtn" class="w-full py-3 md:py-4 text-xl md:text-2xl font-bold rounded-full bg-red-600 text-white border-b-4 border-red-800 shadow-lg hover:bg-red-500 active:border-b-0 active:translate-y-1 transition-all">
+      おみくじを引く
+    </button>
+  </div>
+
+  <footer class="w-full text-center text-gray-500 font-bold py-4 mt-4 z-10 text-xs">
+    <a href="https://www.dm2.co.jp/games/womikuji.html">【極上おみくじ】</a>もあります
+<p style="clear: left">　</p>
+    <a href="https://www.dm2.co.jp/">株式会社ドモドモコーポレーションTOPへ</a>
+  </footer>
+
+  <div id="resultOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 overflow-y-auto py-8">
+    
+    <div id="resultCard" class="w-[85%] max-w-[320px] md:max-w-[360px] h-auto min-h-[420px] py-6 px-4 flex flex-col items-center justify-center rounded-2xl shadow-2xl transition-all duration-500 ease-out transform scale-50 opacity-0 relative bg-white border-8 border-gray-800 my-auto">
+      
+      <div id="resultText" class="text-5xl md:text-6xl font-bold tracking-widest mb-4 mt-2 text-gray-800"></div>
+      
+      <div id="adviceArea" class="w-full border-t border-dashed border-gray-300 pt-4 px-1 text-center transition-opacity duration-700 opacity-0 flex flex-col flex-grow">
+        
+        <div class="mb-3">
+          <span class="fortune-label text-[10px] md:text-xs block text-gray-400 mb-1">【 今日のメッセージ 】</span>
+          <p id="resultMsg" class="text-sm md:text-base font-bold leading-relaxed text-gray-700"></p>
+        </div>
+        
+        <div class="mb-4">
+          <span class="fortune-label text-[10px] md:text-xs block text-gray-400 mb-1">【 推奨アクション 】</span>
+          <p id="resultAction" class="text-xs md:text-sm font-bold bg-gray-50 border border-gray-200 p-2 rounded-lg text-gray-800"></p>
+        </div>
+
+        <div class="mt-auto pt-3 border-t border-gray-100 flex flex-col items-center">
+          <p class="nagesen-text text-[9px] md:text-[10px] text-gray-400 mb-2">おみくじを楽しんでいただけたら</p>
+          <a href="https://nagesen.square.site/?gamesbanar" target="_blank" class="block transition-transform hover:scale-105 active:scale-95">
+            <img src="https://www.dm2.co.jp/wp-content/uploads/2025/05/nagesendomodomobanar001.jpg" alt="投げ銭で応援する" class="w-48 md:w-56 h-auto rounded-lg shadow-sm border border-gray-200">
+          </a>
+        </div>
+
+      </div>
+    </div>
+
+    <button id="closeBtn" class="mt-6 px-8 py-3 bg-white text-gray-800 font-bold rounded-full shadow-lg hover:bg-gray-200 transition-all duration-300 pointer-events-none opacity-0 translate-y-4 shrink-0">
+      もう一度引く
+    </button>
+  </div>
+
+  <script>
+    // --- 運勢ごとのメッセージ設定（各7パターン） ---
+    const fortuneDetails = {
+      "大吉": [
+        { msg: "今は動くほど成果が出やすい流れです", action: "新しい取り組みを1つ試してください" },
+        { msg: "決断のスピードが大きな飛躍を生みます", action: "迷っていた案件に今すぐ結論を出しましょう" },
+        { msg: "周囲を巻き込むことでさらに運気が加速します", action: "協力してほしい人に声をかけてみてください" },
+        { msg: "過去の失敗を取り返せる絶好のタイミングです", action: "以前諦めたことに再挑戦してください" },
+        { msg: "直感が冴え渡り、最良の選択ができる日です", action: "今日思いついたアイデアをすぐに書き留めてください" },
+        { msg: "予想以上の結果が期待できる無敵の状態です", action: "いつもより高い目標を設定して動き出しましょう" },
+        { msg: "あなたの熱意が相手にまっすぐ伝わります", action: "重要な提案や交渉を今日実行してください" }
+      ],
+      "中吉": [
+        { msg: "積み上げが成果につながる状態です", action: "既存顧客へのフォローを1件増やしてください" },
+        { msg: "地道な努力がようやく形になり始めます", action: "今進めているプロジェクトをさらに深掘りしましょう" },
+        { msg: "コミュニケーションが円滑に進む運気です", action: "普段話さないチームメンバーと雑談してください" },
+        { msg: "今の方向性は間違っていません、自信を持って", action: "今日のタスクを予定通りに完了させましょう" },
+        { msg: "過去の経験が今のあなたを助けてくれます", action: "似たような過去の成功事例を振り返ってください" },
+        { msg: "焦らずペースを守ることで信頼を獲得できます", action: "スケジュールに少し余裕を持たせて行動しましょう" },
+        { msg: "感謝の気持ちが次のチャンスを引き寄せます", action: "サポートしてくれている人に「ありがとう」と伝えてください" }
+      ],
+      "小吉": [
+        { msg: "整えることで伸びる前段階です", action: "サービス説明や資料を1つ見直してください" },
+        { msg: "小さな気づきが大きな改善を生む日です", action: "いつも使っているツールの設定を見直してみましょう" },
+        { msg: "足元を固めることで運気が安定します", action: "デスク周りやPCのデスクトップを整理してください" },
+        { msg: "情報収集にツキがあるタイミングです", action: "業界の新しいニュースを3つチェックしてください" },
+        { msg: "視点を変えることで見えなかった道が開けます", action: "いつもと違うルートで移動するか、環境を変えて作業してください" },
+        { msg: "丁寧な対応が後々の評価につながります", action: "メールの文面をいつもより推敲して送ってください" },
+        { msg: "準備の質がそのまま結果に直結します", action: "明日のタスクリストを今日のうちに作成しましょう" }
+      ],
+      "吉": [
+        { msg: "様子を見ながら進めると良い流れです", action: "最近の数字やデータを1つ振り返ってください" },
+        { msg: "良い意味で現状維持が最適な選択です", action: "いつも通りのルーティンを大切にこなしましょう" },
+        { msg: "感情をコントロールすることで物事が順調に進みます", action: "一度深呼吸をしてから次の作業に入ってください" },
+        { msg: "隠れた才能やリソースに気づける日です", action: "使っていないツールや人脈がないか確認してください" },
+        { msg: "無理のない範囲での行動が良い結果を生みます", action: "今日は残業せず、定時で区切りをつけてください" },
+        { msg: "相手の意見を尊重するとスムーズにまとまります", action: "会話の中で「聞く」割合を増やしてください" },
+        { msg: "少しの気分転換がパフォーマンスを上げます", action: "温かい飲み物を淹れて5分間リラックスしましょう" }
+      ],
+      "末吉": [
+        { msg: "見直しが必要なサインです", action: "やり方を1つだけ変えてください" },
+        { msg: "効率が落ちている原因を探るべきタイミングです", action: "時間がかかりすぎている作業をリストアップしてください" },
+        { msg: "少しのボタンの掛け違いが起きていそうです", action: "前提条件や目的をもう一度確認し直してください" },
+        { msg: "慣れによるケアレスミスに注意が必要です", action: "提出前・送信前のチェックを必ず2回行ってください" },
+        { msg: "今のまま進むと壁にぶつかる可能性があります", action: "代替案（プランB）を今のうちに考えておきましょう" },
+        { msg: "他人の意見に耳を傾けることで危機を回避できます", action: "悩んでいることを第三者に相談してみてください" },
+        { msg: "変化を受け入れる準備をする時期です", action: "不要になった古いルールや習慣を1つ手放してください" }
+      ],
+      "凶": [
+        { msg: "無理に動かない方が良い状態です", action: "今の課題を1つ解決してください" },
+        { msg: "焦りから判断を誤りやすい危険な日です", action: "重要な決断は明日以降に先送りしてください" },
+        { msg: "コミュニケーションのすれ違いが起きやすいです", action: "複雑な用件はテキストだけでなく口頭でも補足してください" },
+        { msg: "体調やメンタルの低下がパフォーマンスに響いています", action: "睡眠時間を確保し、今日は早く休んでください" },
+        { msg: "予想外のトラブルが隠れている気配があります", action: "バックアップの確認や、リスクの再評価を行ってください" },
+        { msg: "孤軍奮闘すると泥沼にハマります", action: "意地を張らず、素直に周囲へ助けを求めてください" },
+        { msg: "支出や投資の見通しが甘くなりがちです", action: "今日の無駄遣いを控え、経費や予算を見直してください" }
+      ],
+      "大凶": [
+        { msg: "一旦停止のサインです、要注意！", action: "先送りしていた課題を振り返りましょう" },
+        { msg: "全てが裏目に出やすい、非常に厳しい運気です", action: "新しい予定は入れず、既存の火消しに専念してください" },
+        { msg: "やり方だけでなく、在り方そのものを問われています", action: "初心に立ち返り、自分の仕事の「目的」を書き出してください" },
+        { msg: "人間関係に大きなヒビが入る恐れがあります", action: "感情的な発言を控え、相手を責めるのをやめてください" },
+        { msg: "限界を超えており、強制終了の一歩手前です", action: "すべての通知を切り、デジタルデトックスの時間を取ってください" },
+        { msg: "過去の隠し事やごまかしが表面化する暗示です", action: "嘘をつかず、誠実に事実だけを報告・対応してください" },
+        { msg: "ここが底です。あとは上がるだけなので焦らないで", action: "今日は「何もしないこと」を最大のタスクにしてください" }
+      ]
+    };
+
+    const probabilities = {
+      lucky:    [{ name: '大吉', rate: 50 }, { name: '中吉', rate: 20 }, { name: '小吉', rate: 15 }, { name: '吉', rate: 15 }],
+      standard: [{ name: '大吉', rate: 20 }, { name: '吉', rate: 25 }, { name: '中吉', rate: 15 }, { name: '小吉', rate: 15 }, { name: '末吉', rate: 15 }, { name: '凶', rate: 8 }, { name: '大凶', rate: 2 }],
+      thorny:   [{ name: '大吉', rate: 1 }, { name: '吉', rate: 10 }, { name: '中吉', rate: 5 }, { name: '小吉', rate: 5 }, { name: '末吉', rate: 9 }, { name: '凶', rate: 30 }, { name: '大凶', rate: 40 }]
+    };
+
+    const drawBtn = document.getElementById('drawBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const omikujiBox = document.getElementById('omikuji-box');
+    const resultOverlay = document.getElementById('resultOverlay');
+    const resultCard = document.getElementById('resultCard');
+    const resultText = document.getElementById('resultText');
+    const resultMsg = document.getElementById('resultMsg');
+    const resultAction = document.getElementById('resultAction');
+    const adviceArea = document.getElementById('adviceArea');
+    const modeRadios = document.querySelectorAll('input[name="mode"]');
+    const soundToggle = document.getElementById('soundToggle');
+
+    let isDrawing = false;
+    let isSoundEnabled = true;
+    let audioCtx = null;
+    let isAudioUnlocked = false;
+
+    // --- iOS対応：ボタンを押した瞬間に確実にロックを解除する処理 ---
+    function initAudio() {
+      if (isAudioUnlocked) return;
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        audioCtx = new AudioContext();
+
+        // サイレントオシレーター（無音の波）を流してブラウザに再生許可を強制させる
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0; // 無音
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(0);
+        osc.stop(audioCtx.currentTime + 0.01);
+
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        isAudioUnlocked = true;
+      } catch (e) {
+        console.error("Audio unlock failed:", e);
+      }
+    }
+
+    // 画面タップ時にも念のため初期化を試みる
+    ['touchstart', 'click'].forEach(evt => {
+        document.body.addEventListener(evt, initAudio, { once: true, capture: true, passive: true });
+    });
+
+    soundToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      initAudio(); // 音声ボタンを押した瞬間に強制アンロック
+      isSoundEnabled = !isSoundEnabled;
+      soundToggle.innerText = isSoundEnabled ? '🔊' : '🔇';
+      soundToggle.classList.toggle('opacity-50', !isSoundEnabled);
+    });
+
+    function playTone(freq, type, duration, vol = 0.1) {
+      if (!isSoundEnabled || !audioCtx) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    function playShakeSound() {
+      const interval = setInterval(() => {
+        if (!isDrawing) { clearInterval(interval); return; }
+        playTone(300 + Math.random() * 200, 'square', 0.05, 0.05);
+      }, 80);
+    }
+
+    function playResultSound(result) {
+      if (result === '大吉') {
+        [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.3, 0.2), i * 150));
+      } else if (result === '大凶' || result === '凶') {
+        playTone(150, 'sawtooth', 1.0, 0.3);
+        setTimeout(() => playTone(100, 'sawtooth', 1.5, 0.3), 300);
+      } else {
+        playTone(659.25, 'sine', 0.1, 0.2);
+        setTimeout(() => playTone(880.00, 'sine', 0.4, 0.2), 100);
+      }
+    }
+
+    function drawFortune(mode) {
+      const rates = probabilities[mode];
+      const totalRate = rates.reduce((sum, item) => sum + item.rate, 0);
+      const rand = Math.random() * totalRate;
+      let currentSum = 0;
+      for (const item of rates) {
+        currentSum += item.rate;
+        if (rand <= currentSum) return item.name;
+      }
+      return rates[0].name;
+    }
+
+    function shootConfetti() {
+      const end = Date.now() + 3000;
+      (function frame() {
+        confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#fbbf24', '#ef4444'] });
+        confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#fbbf24', '#ef4444'] });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      }());
+    }
+
+    drawBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      initAudio(); // 【重要】おみくじボタンを押した瞬間に強制アンロック
+
+      if (isDrawing) return;
+      isDrawing = true;
+
+      const selectedMode = document.querySelector('input[name="mode"]:checked').value;
+      drawBtn.disabled = true;
+      drawBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      modeRadios.forEach(radio => radio.disabled = true);
+      
+      omikujiBox.classList.add('shaking');
+      playShakeSound();
+      
+      setTimeout(() => {
+        isDrawing = false;
+        omikujiBox.classList.remove('shaking');
+        showResult(drawFortune(selectedMode));
+      }, 2000);
+    });
+
+    function showResult(result) {
+      resultText.innerText = result;
+      
+      // 対象の運勢のメッセージ配列からランダムに1つ取得
+      const detailsArray = fortuneDetails[result];
+      const randomDetail = detailsArray[Math.floor(Math.random() * detailsArray.length)];
+      
+      resultMsg.innerText = randomDetail.msg;
+      resultAction.innerText = randomDetail.action;
+      
+      resultCard.className = 'w-[85%] max-w-[320px] md:max-w-[360px] h-auto min-h-[420px] py-6 px-4 flex flex-col items-center justify-center rounded-2xl shadow-2xl transition-all duration-500 ease-out transform scale-50 opacity-0 relative bg-white border-8 border-gray-800 my-auto';
+      adviceArea.classList.add('opacity-0');
+
+      if (result === '大吉') {
+        resultCard.classList.add('aura-daikichi');
+        shootConfetti();
+      } else if (result === '大凶') {
+        resultCard.classList.add('aura-daikyo');
+      } else if (result === '凶') {
+        resultCard.classList.add('bg-gray-800', 'border-black');
+        resultText.classList.add('text-red-500');
+        document.querySelectorAll('.fortune-label').forEach(el => el.classList.add('text-gray-500'));
+        resultMsg.classList.add('text-gray-300');
+        resultAction.classList.add('bg-gray-700', 'text-white', 'border-gray-600');
+      }
+
+      resultOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      
+      setTimeout(() => {
+        playResultSound(result);
+        resultCard.classList.remove('scale-50', 'opacity-0');
+        resultCard.classList.add('scale-100', 'opacity-100');
+      }, 100);
+
+      setTimeout(() => {
+        adviceArea.classList.remove('opacity-0');
+        adviceArea.classList.add('opacity-100');
+      }, 600);
+
+      setTimeout(() => {
+        closeBtn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+        closeBtn.classList.add('opacity-100', 'translate-y-0');
+      }, 1500);
+    }
+
+    closeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      initAudio(); // 閉じるボタンのタップでも保険でロック解除
+      
+      resultCard.classList.remove('scale-100', 'opacity-100');
+      resultCard.classList.add('scale-50', 'opacity-0');
+      closeBtn.classList.remove('opacity-100', 'translate-y-0');
+      closeBtn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+      
+      setTimeout(() => {
+        resultOverlay.classList.add('opacity-0', 'pointer-events-none');
+        drawBtn.disabled = false;
+        drawBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        modeRadios.forEach(radio => radio.disabled = false);
+        
+        document.querySelectorAll('.fortune-label').forEach(el => el.classList.remove('text-gray-500'));
+        resultText.classList.remove('text-red-500');
+        resultMsg.classList.remove('text-gray-300');
+        resultAction.classList.remove('bg-gray-700', 'text-white', 'border-gray-600');
+      }, 500);
+    });
+  </script>
+</body>
+</html>
