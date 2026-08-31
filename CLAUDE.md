@@ -11,9 +11,15 @@
 
 - `index.html` **1枚だけ**の静的サイト。ビルド手順もnpmパッケージも無い
 - `main` にpushすると **Vercelが自動で本番を更新する**（`claude/*` ブランチはプレビューのみ）
+- **正式な公開URLは https://app.tohda.com/**（管理しているサブドメイン）。
+  `https://omikuji-three.vercel.app` はVercelが自動で付ける既定のURLで、中身は同じもの
 - 外部依存はすべてCDN読み込み（Tailwind CSS / canvas-confetti / Google Fonts / GA4）
 - **サーバー側にデータは一切保存していない。** おみくじの履歴は、引いた人それぞれの
   ブラウザの `localStorage`（＝その人の端末の中）にしか無い
+- **⚠️ `localStorage` はオリジン（`https://` + ホスト名）ごとに完全に分かれている。**
+  そのため `app.tohda.com` と `omikuji-three.vercel.app` では、同じ内容が表示されていても
+  **履歴は共有されない**（2026-08-31に実機で確認）。ブラウザが別サイトとして扱うため。
+  移したいときは、アプリ内の「💾 バックアップを保存」→「📂 バックアップから復元」を使う
 - 変更履歴は [`CHANGELOG.md`](CHANGELOG.md) に詳しく残す。**その場の会話を知らない読者**（数か月後の
   自分・別PCの自分・別セッション）が読んで再現・巻き戻しできる粒度で書くこと
 
