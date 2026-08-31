@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>どもどもおみくじ:tohda.com</title>
 
+  <!--
+    どもどもおみくじ（Vercel公開・静的HTML1枚）
+    詳細な変更履歴: CHANGELOG.md
+
+    2026-08-31 名前欄と運勢履歴（端末内保存）を追加
+  -->
+
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-NPSH4SKZ5E"></script>
 <script>
@@ -78,7 +85,15 @@
   </div>
 
   <div class="bg-white p-4 md:p-8 rounded-3xl shadow-xl border-4 border-red-800 z-10 w-full max-w-md flex flex-col items-center relative mb-auto">
-    <div class="w-full mb-4 md:mb-8 mt-2">
+    <!-- 名前欄。任意入力で、履歴を「誰の運勢か」として残すために使う -->
+    <div class="w-full mb-4 md:mb-6 mt-2">
+      <h2 class="text-center text-xs md:text-sm text-gray-500 mb-2 font-bold">お名前（任意）</h2>
+      <input id="nameInput" type="text" maxlength="20" autocomplete="off"
+             placeholder="入れると履歴に名前が残ります"
+             class="select-text w-full px-4 py-2 text-center text-sm md:text-base rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-400 focus:border-red-400 focus:bg-white focus:outline-none transition-colors">
+    </div>
+
+    <div class="w-full mb-4 md:mb-8">
       <h2 class="text-center text-xs md:text-sm text-gray-500 mb-2 font-bold">確率モード選択</h2>
       <div class="grid grid-cols-3 gap-1 md:gap-2 bg-gray-100 p-1 md:p-2 rounded-xl">
         <label class="cursor-pointer">
@@ -107,6 +122,11 @@
     <button id="drawBtn" class="w-full py-3 md:py-4 text-xl md:text-2xl font-bold rounded-full bg-red-600 text-white border-b-4 border-red-800 shadow-lg hover:bg-red-500 active:border-b-0 active:translate-y-1 transition-all">
       おみくじを引く
     </button>
+
+    <!-- 履歴を開くボタン。件数が0のときはJS側で隠す -->
+    <button id="historyBtn" class="hidden mt-3 text-xs md:text-sm text-gray-500 font-bold underline decoration-dotted underline-offset-4 hover:text-red-700 transition-colors">
+      📜 これまでの運勢を見る<span id="historyCount"></span>
+    </button>
   </div>
 
   <footer class="w-full text-center text-gray-500 font-bold py-4 mt-4 z-10 text-xs">
@@ -114,6 +134,31 @@
 <p style="clear: left">　</p>
     <a href="https://www.dm2.co.jp/">株式会社ドモドモコーポレーションTOPへ</a>
   </footer>
+
+  <div id="historyOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 p-4">
+    <div class="bg-white w-full max-w-md max-h-[85svh] rounded-3xl border-4 border-red-800 shadow-2xl flex flex-col overflow-hidden">
+
+      <div class="px-5 pt-5 pb-3 border-b border-gray-200 shrink-0">
+        <h2 id="historyTitle" class="text-lg md:text-xl font-bold text-red-700 text-center">運勢の履歴</h2>
+        <p id="historySummary" class="text-center text-[11px] md:text-xs text-gray-500 mt-1"></p>
+      </div>
+
+      <div class="px-5 py-4 overflow-y-auto grow">
+        <div id="historyStats" class="mb-5"></div>
+        <div id="historyList"></div>
+      </div>
+
+      <div class="px-5 py-3 border-t border-gray-200 flex gap-2 shrink-0">
+        <button id="historyClearBtn" class="flex-1 py-2 text-xs md:text-sm font-bold rounded-full bg-white text-gray-500 border-2 border-gray-300 hover:bg-gray-100 transition-colors">
+          履歴を消す
+        </button>
+        <button id="historyCloseBtn" class="flex-1 py-2 text-xs md:text-sm font-bold rounded-full bg-red-600 text-white border-b-4 border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-1 transition-all">
+          閉じる
+        </button>
+      </div>
+
+    </div>
+  </div>
 
   <div id="resultOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 overflow-y-auto py-8">
     
@@ -233,6 +278,16 @@
     const adviceArea = document.getElementById('adviceArea');
     const modeRadios = document.querySelectorAll('input[name="mode"]');
     const soundToggle = document.getElementById('soundToggle');
+    const nameInput = document.getElementById('nameInput');
+    const historyBtn = document.getElementById('historyBtn');
+    const historyCount = document.getElementById('historyCount');
+    const historyOverlay = document.getElementById('historyOverlay');
+    const historyTitle = document.getElementById('historyTitle');
+    const historySummary = document.getElementById('historySummary');
+    const historyStats = document.getElementById('historyStats');
+    const historyList = document.getElementById('historyList');
+    const historyClearBtn = document.getElementById('historyClearBtn');
+    const historyCloseBtn = document.getElementById('historyCloseBtn');
 
     let isDrawing = false;
     let isSoundEnabled = true;
@@ -336,6 +391,182 @@
       }());
     }
 
+    // =====================================================================
+    //  保存まわり
+    //
+    //  【ここが唯一「データの置き場所」を知っている場所】
+    //  今の保存先はブラウザの localStorage（＝端末の中だけ。他の人には見えない）。
+    //  あとで本物のDB（Supabase等）に移すときは、この historyStore の中身だけを
+    //  差し替えればよく、呼び出し側（下のイベント処理）は一切変えなくてよい。
+    //
+    //  そのために、いま同期処理で済む場面でもあえて async にしてある。
+    //  サーバーのDBは必ず「待ち」が発生するので、最初から待つ形にしておくと
+    //  差し替えのときに呼び出し側を書き直さずに済む。
+    // =====================================================================
+    const historyStore = {
+      KEY: 'omikuji.history.v1',      // 履歴の保存キー
+      NAME_KEY: 'omikuji.name.v1',    // 名前の保存キー
+      MAX: 200,                       // 保存する上限件数（古いものから捨てる）
+
+      // localStorage はプライベートブラウズや設定次第で例外を投げる。
+      // おみくじ本体を止めないよう、失敗しても握りつぶして既定値を返す。
+      _read(key, fallback) {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw === null ? fallback : JSON.parse(raw);
+        } catch (err) {
+          return fallback;
+        }
+      },
+      _write(key, value) {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+          return true;
+        } catch (err) {
+          return false;
+        }
+      },
+
+      async load() {
+        const list = this._read(this.KEY, []);
+        return Array.isArray(list) ? list : [];
+      },
+      async add(record) {
+        const list = await this.load();
+        list.unshift(record);                 // 新しいものが先頭
+        this._write(this.KEY, list.slice(0, this.MAX));
+      },
+      async clear() {
+        this._write(this.KEY, []);
+      },
+      async getName() {
+        const name = this._read(this.NAME_KEY, '');
+        return typeof name === 'string' ? name : '';
+      },
+      async setName(name) {
+        this._write(this.NAME_KEY, name);
+      }
+    };
+
+    // --- 表示用の定数 ---
+    const FORTUNE_ORDER = ['大吉', '中吉', '小吉', '吉', '末吉', '凶', '大凶'];
+    const FORTUNE_COLOR = {
+      '大吉': 'bg-red-600', '中吉': 'bg-orange-500', '小吉': 'bg-amber-500',
+      '吉': 'bg-green-600', '末吉': 'bg-teal-600', '凶': 'bg-gray-500', '大凶': 'bg-gray-800'
+    };
+    const MODE_LABEL = { lucky: 'ラッキー', standard: '標準', thorny: 'いばらの道' };
+
+    // 名前の掃除。前後の空白を落とし、長すぎるものは切る。空なら「名無しさん」
+    function cleanName(raw) {
+      const name = (raw || '').trim().replace(/\s+/g, ' ').slice(0, 20);
+      return name === '' ? '名無しさん' : name;
+    }
+
+    // 「2026-08-31 14:05」の形にする（端末のローカル時刻）
+    function formatDateTime(iso) {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const p = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+           + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    // 履歴ボタンの表示・件数を最新にする
+    async function refreshHistoryButton() {
+      const list = await historyStore.load();
+      historyCount.innerText = list.length === 0 ? '' : '（' + list.length + '回）';
+      historyBtn.classList.toggle('hidden', list.length === 0);
+    }
+
+    // 履歴モーダルの中身を組み立てる
+    async function renderHistory() {
+      const list = await historyStore.load();
+      const total = list.length;
+
+      historyTitle.innerText = cleanName(nameInput.value) + 'の運勢履歴';
+
+      if (total === 0) {
+        historySummary.innerText = 'まだ1回も引いていません';
+        historyStats.innerHTML = '';
+        historyList.innerHTML = '<p class="text-center text-sm text-gray-400 py-6">履歴がありません</p>';
+        return;
+      }
+
+      historySummary.innerText = '全' + total + '回（この端末に保存されています）';
+
+      // --- 運勢ごとの回数と割合 ---
+      const counts = {};
+      list.forEach(r => { counts[r.fortune] = (counts[r.fortune] || 0) + 1; });
+
+      historyStats.innerHTML = FORTUNE_ORDER
+        .filter(f => counts[f])
+        .map(f => {
+          const n = counts[f];
+          const pct = Math.round(n / total * 1000) / 10;   // 小数第1位まで
+          const color = FORTUNE_COLOR[f] || 'bg-gray-400';
+          return '<div class="flex items-center gap-2 mb-1.5">'
+               +   '<span class="w-10 shrink-0 text-xs font-bold text-gray-700">' + f + '</span>'
+               +   '<span class="grow h-3 bg-gray-100 rounded-full overflow-hidden">'
+               +     '<span class="block h-full ' + color + ' rounded-full" style="width:' + Math.max(pct, 2) + '%"></span>'
+               +   '</span>'
+               +   '<span class="w-16 shrink-0 text-right text-[11px] text-gray-500">' + n + '回 ' + pct + '%</span>'
+               + '</div>';
+        }).join('');
+
+      // --- 直近20件の一覧 ---
+      const recent = list.slice(0, 20);
+      historyList.innerHTML =
+          '<h3 class="text-xs font-bold text-gray-400 mb-2 border-t border-gray-100 pt-3">直近'
+        + recent.length + '件</h3>'
+        + recent.map(r =>
+            '<div class="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">'
+          +   '<span class="w-10 shrink-0 text-sm font-bold text-gray-800">' + escapeHtml(r.fortune) + '</span>'
+          +   '<span class="grow text-[11px] text-gray-500">' + escapeHtml(r.name || '') + '</span>'
+          +   '<span class="shrink-0 text-[10px] text-gray-400">'
+          +     escapeHtml(MODE_LABEL[r.mode] || '') + ' / ' + formatDateTime(r.at)
+          +   '</span>'
+          + '</div>').join('');
+    }
+
+    // 名前は利用者が自由に入れられるので、画面に出す前にHTMLとして解釈されないようにする
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+    }
+
+    function openHistory() {
+      renderHistory();
+      historyOverlay.classList.remove('opacity-0', 'pointer-events-none');
+    }
+    function closeHistory() {
+      historyOverlay.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    historyBtn.addEventListener('click', openHistory);
+    historyCloseBtn.addEventListener('click', closeHistory);
+    historyOverlay.addEventListener('click', (e) => {
+      if (e.target === historyOverlay) closeHistory();   // 背景タップで閉じる
+    });
+
+    historyClearBtn.addEventListener('click', async () => {
+      if (!confirm('この端末に保存した運勢の履歴をすべて消します。よろしいですか？')) return;
+      await historyStore.clear();
+      await refreshHistoryButton();
+      await renderHistory();
+    });
+
+    // 名前は入力するたびに覚えておく（次に開いたとき入っている状態にする）
+    nameInput.addEventListener('input', () => {
+      historyStore.setName(nameInput.value);
+    });
+
+    // --- 起動時の復元 ---
+    (async () => {
+      nameInput.value = await historyStore.getName();
+      await refreshHistoryButton();
+    })();
+
     drawBtn.addEventListener('click', (e) => {
       e.preventDefault();
       initAudio(); // 【重要】おみくじボタンを押した瞬間に強制アンロック
@@ -347,14 +578,26 @@
       drawBtn.disabled = true;
       drawBtn.classList.add('opacity-50', 'cursor-not-allowed');
       modeRadios.forEach(radio => radio.disabled = true);
+      nameInput.disabled = true;
       
       omikujiBox.classList.add('shaking');
       playShakeSound();
       
-      setTimeout(() => {
+      setTimeout(async () => {
         isDrawing = false;
         omikujiBox.classList.remove('shaking');
-        showResult(drawFortune(selectedMode));
+
+        const result = drawFortune(selectedMode);
+        showResult(result);
+
+        // 引いた結果を履歴に残す（保存に失敗してもおみくじ自体は止めない）
+        await historyStore.add({
+          at: new Date().toISOString(),
+          name: cleanName(nameInput.value),
+          mode: selectedMode,
+          fortune: result
+        });
+        await refreshHistoryButton();
       }, 2000);
     });
 
@@ -417,6 +660,7 @@
         drawBtn.disabled = false;
         drawBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         modeRadios.forEach(radio => radio.disabled = false);
+        nameInput.disabled = false;
         
         document.querySelectorAll('.fortune-label').forEach(el => el.classList.remove('text-gray-500'));
         resultText.classList.remove('text-red-500');
