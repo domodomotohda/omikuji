@@ -9,6 +9,7 @@
     どもどもおみくじ（Vercel公開・静的HTML1枚）
     詳細な変更履歴: CHANGELOG.md
 
+    2026-08-31 履歴のバックアップ（ファイルへの書き出し・復元）を追加
     2026-08-31 名前欄と運勢履歴（端末内保存）を追加
   -->
 
@@ -148,13 +149,32 @@
         <div id="historyList"></div>
       </div>
 
-      <div class="px-5 py-3 border-t border-gray-200 flex gap-2 shrink-0">
-        <button id="historyClearBtn" class="flex-1 py-2 text-xs md:text-sm font-bold rounded-full bg-white text-gray-500 border-2 border-gray-300 hover:bg-gray-100 transition-colors">
-          履歴を消す
-        </button>
-        <button id="historyCloseBtn" class="flex-1 py-2 text-xs md:text-sm font-bold rounded-full bg-red-600 text-white border-b-4 border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-1 transition-all">
-          閉じる
-        </button>
+      <div class="px-5 py-3 border-t border-gray-200 shrink-0">
+
+        <!-- 1段目：バックアップ関係。履歴が0件のときはJS側で隠す -->
+        <div class="flex gap-1.5 mb-2">
+          <button id="historyExportBtn" class="flex-1 py-2 px-1 text-[11px] md:text-xs font-bold rounded-full bg-amber-50 text-amber-800 border-2 border-amber-300 hover:bg-amber-100 transition-colors">
+            💾 バックアップ<br class="md:hidden">を保存
+          </button>
+          <button id="historyCsvBtn" class="flex-1 py-2 px-1 text-[11px] md:text-xs font-bold rounded-full bg-green-50 text-green-800 border-2 border-green-300 hover:bg-green-100 transition-colors">
+            📊 Excel用<br class="md:hidden">に書き出す
+          </button>
+          <button id="historyImportBtn" class="flex-1 py-2 px-1 text-[11px] md:text-xs font-bold rounded-full bg-blue-50 text-blue-800 border-2 border-blue-300 hover:bg-blue-100 transition-colors">
+            📂 バックアップ<br class="md:hidden">から復元
+          </button>
+        </div>
+        <input id="historyImportFile" type="file" accept=".json,application/json" class="hidden">
+        <p id="historyNotice" class="hidden text-center text-[11px] font-bold mb-2"></p>
+
+        <!-- 2段目 -->
+        <div class="flex gap-2">
+          <button id="historyClearBtn" class="flex-1 py-2 text-xs md:text-sm font-bold rounded-full bg-white text-gray-500 border-2 border-gray-300 hover:bg-gray-100 transition-colors">
+            履歴を消す
+          </button>
+          <button id="historyCloseBtn" class="flex-1 py-2 text-xs md:text-sm font-bold rounded-full bg-red-600 text-white border-b-4 border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-1 transition-all">
+            閉じる
+          </button>
+        </div>
       </div>
 
     </div>
@@ -286,6 +306,11 @@
     const historySummary = document.getElementById('historySummary');
     const historyStats = document.getElementById('historyStats');
     const historyList = document.getElementById('historyList');
+    const historyExportBtn = document.getElementById('historyExportBtn');
+    const historyCsvBtn = document.getElementById('historyCsvBtn');
+    const historyImportBtn = document.getElementById('historyImportBtn');
+    const historyImportFile = document.getElementById('historyImportFile');
+    const historyNotice = document.getElementById('historyNotice');
     const historyClearBtn = document.getElementById('historyClearBtn');
     const historyCloseBtn = document.getElementById('historyCloseBtn');
 
@@ -439,6 +464,11 @@
       async clear() {
         this._write(this.KEY, []);
       },
+      // バックアップからの復元で使う。並べ替えと件数の切り詰めもここで行う
+      async replaceAll(list) {
+        const sorted = list.slice().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+        this._write(this.KEY, sorted.slice(0, this.MAX));
+      },
       async getName() {
         const name = this._read(this.NAME_KEY, '');
         return typeof name === 'string' ? name : '';
@@ -484,6 +514,12 @@
       const total = list.length;
 
       historyTitle.innerText = cleanName(nameInput.value) + 'の運勢履歴';
+
+      // 履歴が0件でも「復元」は使いたいので、行そのものは残す
+      historyExportBtn.disabled = (total === 0);
+      historyCsvBtn.disabled = (total === 0);
+      historyExportBtn.classList.toggle('opacity-40', total === 0);
+      historyCsvBtn.classList.toggle('opacity-40', total === 0);
 
       if (total === 0) {
         historySummary.innerText = 'まだ1回も引いていません';
@@ -542,6 +578,120 @@
     function closeHistory() {
       historyOverlay.classList.add('opacity-0', 'pointer-events-none');
     }
+
+    // =====================================================================
+    //  バックアップ（履歴をファイルに書き出す／ファイルから戻す）
+    //
+    //  履歴は「この端末のブラウザの中」にしか無く、サーバーには送っていない。
+    //  そのため、端末を替える・ブラウザの閲覧データを消す・機種変更する、
+    //  のいずれでも履歴は消える。それを避けるための手動バックアップ。
+    // =====================================================================
+
+    // ブラウザに「このファイルを保存して」と渡す共通処理
+    function downloadFile(filename, text, mimeType) {
+      const blob = new Blob([text], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);   // 使い終わったURLを解放する
+    }
+
+    // ファイル名に入れる日付。「omikuji-history-2026-08-31」の形
+    function todayStamp() {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+
+    // モーダル下部に短いお知らせを出す（4秒で消える）
+    let noticeTimer = null;
+    function showNotice(message, ok = true) {
+      historyNotice.innerText = message;
+      historyNotice.classList.remove('hidden', 'text-green-700', 'text-red-600');
+      historyNotice.classList.add(ok ? 'text-green-700' : 'text-red-600');
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => historyNotice.classList.add('hidden'), 4000);
+    }
+
+    // --- 書き出し① バックアップ用のJSON。これだけが「復元」に使える ---
+    historyExportBtn.addEventListener('click', async () => {
+      const list = await historyStore.load();
+      if (list.length === 0) { showNotice('履歴がありません', false); return; }
+      const data = {
+        app: 'domodomo-omikuji',      // 復元時に「別アプリのファイル」を弾くための目印
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        count: list.length,
+        records: list
+      };
+      downloadFile('omikuji-history-' + todayStamp() + '.json',
+                   JSON.stringify(data, null, 2), 'application/json');
+      showNotice(list.length + '件を書き出しました');
+    });
+
+    // --- 書き出し② Excel/スプレッドシートで開くためのCSV（復元には使えない） ---
+    historyCsvBtn.addEventListener('click', async () => {
+      const list = await historyStore.load();
+      if (list.length === 0) { showNotice('履歴がありません', false); return; }
+      // 値に , や " や改行が入っても壊れないように、二重引用符で囲んで " は "" に増やす
+      const cell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const rows = [['日時', '名前', 'モード', '運勢']].concat(
+        list.map(r => [formatDateTime(r.at), r.name || '', MODE_LABEL[r.mode] || r.mode || '', r.fortune])
+      );
+      // 先頭のBOMは、ExcelにUTF-8だと伝えて日本語の文字化けを防ぐための決まり文句
+      const csv = '\uFEFF' + rows.map(cols => cols.map(cell).join(',')).join('\r\n');
+      downloadFile('omikuji-history-' + todayStamp() + '.csv', csv, 'text/csv');
+      showNotice(list.length + '件をCSVに書き出しました');
+    });
+
+    // --- 復元。書き出したJSONを読み込み、いまの履歴に足す ---
+    historyImportBtn.addEventListener('click', () => historyImportFile.click());
+
+    historyImportFile.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      historyImportFile.value = '';           // 同じファイルを続けて選べるようにする
+      if (!file) return;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch (err) {
+        showNotice('ファイルを読めませんでした', false);
+        return;
+      }
+
+      // このアプリが書き出したファイルか確認する（配列だけのファイルも一応受け付ける）
+      const incoming = Array.isArray(parsed) ? parsed
+                     : (parsed && Array.isArray(parsed.records)) ? parsed.records : null;
+      if (!incoming) { showNotice('おみくじのバックアップではありません', false); return; }
+
+      // 中身の形が合っている行だけを通す
+      const valid = incoming.filter(r =>
+        r && typeof r.at === 'string' && typeof r.fortune === 'string' && !isNaN(new Date(r.at).getTime())
+      ).map(r => ({
+        at: r.at,
+        name: typeof r.name === 'string' ? r.name : '',
+        mode: typeof r.mode === 'string' ? r.mode : '',
+        fortune: r.fortune
+      }));
+      if (valid.length === 0) { showNotice('取り込める履歴がありませんでした', false); return; }
+
+      // いまの履歴と合わせる。同じ日時のものは二重に増やさない
+      const current = await historyStore.load();
+      const seen = new Set(current.map(r => r.at));
+      const added = valid.filter(r => !seen.has(r.at));
+
+      await historyStore.replaceAll(current.concat(added));
+      await refreshHistoryButton();
+      await renderHistory();
+      showNotice(added.length === 0
+        ? 'すべて取り込み済みでした（追加0件）'
+        : added.length + '件を取り込みました');
+    });
 
     historyBtn.addEventListener('click', openHistory);
     historyCloseBtn.addEventListener('click', closeHistory);
